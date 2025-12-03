@@ -9,37 +9,62 @@ import {
 	Text,
 	TextInput,
 	View,
+	GestureResponderEvent,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
 const Tab = createBottomTabNavigator();
 
 type Objective = 'ganancia muscular' | 'definición muscular';
+type TrainingExercise = { id: string; name: string; prescription: string };
+type TrainingExerciseGroup = { id: string; name: string; exercises: TrainingExercise[] };
+type TrainingDay = { id: string; title: string; focus: string; exercises?: TrainingExercise[]; groups?: TrainingExerciseGroup[] };
+type Reminder = { id: string; icon: string; title: string; body: string };
 
-const programDays = [
+const fallbackProgramDays: TrainingDay[] = [
 	{
 		id: 'day-1',
 		title: 'Día 1',
 		focus: 'Piernas',
-		exercises: [
-			{ id: 'ex-1', name: 'Prensa', prescription: '4 x 4' },
-			{ id: 'ex-2', name: 'Sentadillas con peso', prescription: '4 x 4' },
-			{ id: 'ex-3', name: 'Peso muerto rumano', prescription: '3 x 8' },
+		groups: [
+			{
+				id: 'group-1',
+				name: 'Compuestos',
+				exercises: [
+					{ id: 'ex-1', name: 'Prensa', prescription: '4 x 4' },
+					{ id: 'ex-2', name: 'Sentadillas con peso', prescription: '4 x 4' },
+				],
+			},
+			{
+				id: 'group-2',
+				name: 'Aislamiento',
+				exercises: [{ id: 'ex-3', name: 'Peso muerto rumano', prescription: '3 x 8' }],
+			},
 		],
 	},
 	{
 		id: 'day-2',
 		title: 'Día 2',
 		focus: 'Pecho y tríceps',
-		exercises: [
-			{ id: 'ex-4', name: 'Press banca', prescription: '4 x 6' },
-			{ id: 'ex-5', name: 'Fondos', prescription: '3 x 10' },
-			{ id: 'ex-6', name: 'Press francés', prescription: '3 x 12' },
+		groups: [
+			{
+				id: 'group-3',
+				name: 'Pecho',
+				exercises: [
+					{ id: 'ex-4', name: 'Press banca', prescription: '4 x 6' },
+					{ id: 'ex-5', name: 'Fondos', prescription: '3 x 10' },
+				],
+			},
+			{
+				id: 'group-4',
+				name: 'Tríceps',
+				exercises: [{ id: 'ex-6', name: 'Press francés', prescription: '3 x 12' }],
+			},
 		],
 	},
 ];
 
-const reminders = [
+const reminders: Reminder[] = [
 	{ id: 'rem-1', icon: 'water-outline', title: 'Hidratación', body: 'Bebe un vaso de agua cada 2 horas.' },
 	{ id: 'rem-2', icon: 'walk-outline', title: 'Entrenamiento', body: 'Sesión programada para las 18:00.' },
 	{ id: 'rem-3', icon: 'nutrition-outline', title: 'Comida pre-entreno', body: 'Consume carbohidratos ligeros 45 minutos antes.' },
@@ -57,7 +82,14 @@ const formatTime = (seconds: number) => {
 };
 
 const UserExercisesScreen = () => {
+	const { user } = useAuth() as AuthWithOptionalUpdate;
 	const [completed, setCompleted] = useState<Record<string, boolean>>({});
+	const assignedProgram = React.useMemo<TrainingDay[]>(() => {
+		const trainerPlan = user?.programDays;
+		return trainerPlan && trainerPlan.length ? trainerPlan : fallbackProgramDays;
+	}, [user?.programDays]);
+
+	React.useEffect(() => setCompleted({}), [assignedProgram]);
 
 	const toggleExercise = (id: string) =>
 		setCompleted((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -67,38 +99,78 @@ const UserExercisesScreen = () => {
 			<ScrollView contentContainerStyle={styles.scroll}>
 				<Text style={styles.title}>Ejercicios</Text>
 				<Text style={styles.subtitle}>Revisa tu plan por día y marca los ejercicios completados.</Text>
-				{programDays.map((day) => (
-					<View key={day.id} style={styles.dayCard}>
-						<View style={styles.dayHeader}>
-							<Text style={styles.dayTitle}>{day.title}</Text>
-							<Text style={styles.dayFocus}>{day.focus}</Text>
+				{assignedProgram.map((day) => {
+					const groupedExercisesCount =
+						day.groups?.reduce((count, group) => count + group.exercises.length, 0) ?? 0;
+					const totalExercises = groupedExercisesCount + (day.exercises?.length ?? 0);
+					return (
+						<View key={day.id} style={styles.dayCard}>
+							<View style={styles.dayHeader}>
+								<View>
+									<Text style={styles.dayTitle}>{day.title}</Text>
+									<Text style={styles.dayMeta}>{`${totalExercises} ejercicios`}</Text>
+								</View>
+								<View style={styles.dayFocusPill}>
+									<Ionicons name="flash-outline" size={14} color="#4AD1A9" style={styles.dayFocusIcon} />
+									<Text style={styles.dayFocus}>{day.focus}</Text>
+								</View>
+							</View>
+							{day.groups?.map((group) => (
+								<View key={group.id} style={styles.exerciseGroup}>
+									<Text style={styles.exerciseGroupTitle}>{group.name}</Text>
+									{group.exercises.map((exercise) => {
+										const done = completed[exercise.id];
+										return (
+											<Pressable
+												key={exercise.id}
+												style={({ pressed }) => [
+													styles.exerciseRow,
+													done && styles.exerciseRowDone,
+													pressed && styles.exerciseRowPressed,
+												]}
+												onPress={() => toggleExercise(exercise.id)}
+											>
+												<View>
+													<Text style={styles.exerciseName}>{exercise.name}</Text>
+													<Text style={styles.exercisePrescription}>{exercise.prescription}</Text>
+												</View>
+												<Ionicons
+													name={done ? 'checkmark-circle' : 'ellipse-outline'}
+													size={22}
+													color={done ? '#4AD1A9' : '#5D6770'}
+												/>
+											</Pressable>
+										);
+									})}
+								</View>
+							))}
+							{day.exercises?.map((exercise) => {
+								const done = completed[exercise.id];
+								return (
+									<Pressable
+										key={exercise.id}
+										style={({ pressed }) => [
+											styles.exerciseRow,
+											done && styles.exerciseRowDone,
+											pressed && styles.exerciseRowPressed,
+										]}
+										onPress={() => toggleExercise(exercise.id)}
+									>
+										<View>
+											<Text style={styles.exerciseName}>{exercise.name}</Text>
+											<Text style={styles.exercisePrescription}>{exercise.prescription}</Text>
+										</View>
+										<Ionicons
+											name={done ? 'checkmark-circle' : 'ellipse-outline'}
+											size={22}
+											color={done ? '#4AD1A9' : '#5D6770'}
+										/>
+									</Pressable>
+								);
+							})}
 						</View>
-						{day.exercises.map((exercise) => {
-							const done = completed[exercise.id];
-							return (
-								<Pressable
-									key={exercise.id}
-									style={({ pressed }) => [
-										styles.exerciseRow,
-										done && styles.exerciseRowDone,
-										pressed && styles.exerciseRowPressed,
-									]}
-									onPress={() => toggleExercise(exercise.id)}
-								>
-									<View>
-										<Text style={styles.exerciseName}>{exercise.name}</Text>
-										<Text style={styles.exercisePrescription}>{exercise.prescription}</Text>
-									</View>
-									<Ionicons
-										name={done ? 'checkmark-circle' : 'ellipse-outline'}
-										size={22}
-										color={done ? '#4AD1A9' : '#5D6770'}
-									/>
-								</Pressable>
-							);
-						})}
-					</View>
-				))}
+					);
+				})}
 			</ScrollView>
 		</SafeAreaView>
 	);
@@ -463,10 +535,16 @@ const UserTimerScreen = () => {
 };
 
 type UpdateProfileFn = (payload: { fullName: string; email: string; birthdate: string; password?: string }) => void;
-type WithContact = { email?: string; birthdate?: string; fullName?: string };
+type WithUserFields = {
+	email?: string;
+	birthdate?: string;
+	fullName?: string;
+	username?: string;
+	programDays?: TrainingDay[];
+};
 type AuthReturn = ReturnType<typeof useAuth>;
 type AuthWithOptionalUpdate = Omit<AuthReturn, 'user'> & {
-	user: AuthReturn['user'] extends null ? null : AuthReturn['user'] & WithContact;
+	user: AuthReturn['user'] extends null ? null : AuthReturn['user'] & WithUserFields;
 	updateProfile?: UpdateProfileFn;
 };
 
@@ -568,17 +646,115 @@ const UserProfileScreen = () => {
 };
 
 const UserNoticesScreen = () => {
+	const [userReminders, setUserReminders] = useState<Reminder[]>(reminders);
 	const [completedIds, setCompletedIds] = useState<string[]>([]);
+	const [showReminderForm, setShowReminderForm] = useState(false);
+	const [newReminder, setNewReminder] = useState({ title: '', body: '' });
+	const [editingId, setEditingId] = useState<string | null>(null);
 
 	const toggleNotice = (id: string) =>
 		setCompletedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+
+	const resetReminderForm = () => {
+		setShowReminderForm(false);
+		setEditingId(null);
+		setNewReminder({ title: '', body: '' });
+	};
+
+	const handleSaveReminder = () => {
+		if (!newReminder.title.trim() || !newReminder.body.trim()) {
+			return;
+		}
+		if (editingId) {
+			setUserReminders((prev) =>
+				prev.map((item) =>
+					item.id === editingId
+						? { ...item, title: newReminder.title.trim(), body: newReminder.body.trim() }
+						: item,
+				),
+			);
+		} else {
+			setUserReminders((prev) => [
+				...prev,
+				{
+					id: `rem-${Date.now()}`,
+					icon: 'notifications-outline',
+					title: newReminder.title.trim(),
+					body: newReminder.body.trim(),
+				},
+			]);
+		}
+		resetReminderForm();
+	};
+
+	const handleEditReminder = (reminder: Reminder) => {
+		setNewReminder({ title: reminder.title, body: reminder.body });
+		setEditingId(reminder.id);
+		setShowReminderForm(true);
+	};
+
+	const handleDeleteReminder = (id: string) => {
+		setUserReminders((prev) => prev.filter((item) => item.id !== id));
+		setCompletedIds((prev) => prev.filter((item) => item !== id));
+		if (editingId === id) {
+			resetReminderForm();
+		}
+	};
+
+	const stopCardPress = (event: GestureResponderEvent) => event.stopPropagation();
 
 	return (
 		<SafeAreaView style={styles.screen}>
 			<ScrollView contentContainerStyle={styles.scroll}>
 				<Text style={styles.title}>Avisos</Text>
 				<Text style={styles.subtitle}>Mantén tu rutina bajo control con estos recordatorios.</Text>
-				{reminders.map((item) => {
+				<Pressable
+					onPress={() => (showReminderForm ? resetReminderForm() : setShowReminderForm(true))}
+					style={({ pressed }) => [
+						styles.primaryButton,
+						styles.noticeCreateButton,
+						pressed && styles.primaryButtonPressed,
+					]}
+				>
+					<Text style={styles.primaryButtonText}>
+						{showReminderForm ? 'Cancelar' : 'Agregar recordatorio'}
+					</Text>
+				</Pressable>
+				{showReminderForm && (
+					<View style={styles.noticeForm}>
+						<Text style={styles.noticeFormTitle}>
+							{editingId ? 'Editar recordatorio' : 'Nuevo recordatorio'}
+						</Text>
+						<TextInput
+							style={styles.noticeFormInput}
+							value={newReminder.title}
+							onChangeText={(value) => setNewReminder((prev) => ({ ...prev, title: value }))}
+							placeholder="Título"
+							placeholderTextColor="#5D6770"
+						/>
+						<TextInput
+							style={[styles.noticeFormInput, styles.noticeFormInputMultiline]}
+							value={newReminder.body}
+							onChangeText={(value) => setNewReminder((prev) => ({ ...prev, body: value }))}
+							placeholder="Descripción"
+							placeholderTextColor="#5D6770"
+							multiline
+						/>
+						<Pressable
+							onPress={handleSaveReminder}
+							style={({ pressed }) => [
+								styles.secondaryButton,
+								styles.noticeFormButton,
+								pressed && styles.secondaryButtonPressed,
+							]}
+						>
+							<Text style={styles.secondaryButtonText}>
+								{editingId ? 'Guardar cambios' : 'Crear recordatorio'}
+							</Text>
+						</Pressable>
+					</View>
+				)}
+				{userReminders.map((item) => {
 					const done = completedIds.includes(item.id);
 					return (
 						<Pressable
@@ -596,6 +772,35 @@ const UserNoticesScreen = () => {
 							<View style={styles.noticeBody}>
 								<Text style={styles.noticeTitle}>{item.title}</Text>
 								<Text style={styles.noticeText}>{item.body}</Text>
+								<View style={styles.noticeActions}>
+									<Pressable
+										onPress={(event) => {
+											stopCardPress(event);
+											handleEditReminder(item);
+										}}
+										style={({ pressed }) => [
+											styles.noticeActionButton,
+											pressed && styles.noticeActionButtonPressed,
+										]}
+									>
+										<Ionicons name="create-outline" size={14} color="#5DA3FF" />
+										<Text style={styles.noticeActionText}>Editar</Text>
+									</Pressable>
+									<Pressable
+										onPress={(event) => {
+											stopCardPress(event);
+											handleDeleteReminder(item.id);
+										}}
+										style={({ pressed }) => [
+											styles.noticeActionButton,
+											styles.noticeActionDanger,
+											pressed && styles.noticeActionButtonPressed,
+										]}
+									>
+										<Ionicons name="trash-outline" size={14} color="#FF6B6B" />
+										<Text style={styles.noticeActionTextDanger}>Eliminar</Text>
+									</Pressable>
+								</View>
 							</View>
 							<Ionicons
 								name={done ? 'checkmark-circle' : 'ellipse-outline'}
@@ -614,10 +819,10 @@ export const UserTabs = () => (
 	<Tab.Navigator
 		screenOptions={{
 			headerShown: false,
-			tabBarStyle: { display: 'none' },
-			tabBarButton: () => null,
+			tabBarActiveTintColor: '#4AD1A9',
+			tabBarInactiveTintColor: '#A6B1B8',
+			tabBarStyle: { backgroundColor: '#0F1316', borderTopColor: 'rgba(255,255,255,0.04)' },
 		}}
-		tabBar={() => null}
 	>
 		<Tab.Screen
 			name="UserExercises"
@@ -665,33 +870,49 @@ export const UserTabs = () => (
 const styles = StyleSheet.create({
 	screen: { flex: 1, backgroundColor: '#0B0F12' },
 	scroll: { paddingHorizontal: 24, paddingBottom: 32, paddingTop: 32 },
-	title: { color: '#E6EEF3', fontSize: 24, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-	subtitle: { color: '#A6B1B8', fontSize: 14, marginBottom: 24, textAlign: 'center' },
+	title: { color: '#FFFFFF', fontSize: 24, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+	subtitle: { color: '#D9E6F2', fontSize: 14, marginBottom: 24, textAlign: 'center' },
 	dayCard: {
 		backgroundColor: '#161A1D',
 		borderRadius: 18,
-		padding: 20,
-		marginBottom: 20,
+		padding: 14,
+		marginBottom: 14,
 		borderWidth: 1,
 		borderColor: 'rgba(255,255,255,0.03)',
 	},
-	dayHeader: { marginBottom: 16 },
-	dayTitle: { color: '#E6EEF3', fontSize: 18, fontWeight: '700' },
-	dayFocus: { color: '#5DA3FF', fontSize: 14, marginTop: 4 },
+	dayHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 10,
+	},
+	dayTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+	dayMeta: { color: '#E2E8F0', fontSize: 12, marginTop: 2 },
+	dayFocusPill: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingVertical: 4,
+		paddingHorizontal: 10,
+		borderRadius: 12,
+		backgroundColor: 'rgba(74,209,169,0.12)',
+	},
+	dayFocusIcon: { marginRight: 6 },
+	dayFocus: { color: '#F0FFF9', fontSize: 14, marginTop: 4 },
+	exerciseGroupTitle: { color: '#5DA3FF', fontSize: 13, fontWeight: '600', marginBottom: 6 },
 	exerciseRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		backgroundColor: '#0F1316',
 		borderRadius: 12,
-		paddingVertical: 12,
-		paddingHorizontal: 16,
-		marginBottom: 12,
+		paddingVertical: 9,
+		paddingHorizontal: 12,
+		marginBottom: 8,
 	},
 	exerciseRowDone: { borderColor: '#4AD1A9', borderWidth: 1 },
 	exerciseRowPressed: { opacity: 0.88 },
-	exerciseName: { color: '#E6EEF3', fontSize: 15, fontWeight: '600' },
-	exercisePrescription: { color: '#A6B1B8', fontSize: 13, marginTop: 4 },
+	exerciseName: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+	exercisePrescription: { color: '#E2E8F0', fontSize: 12, marginTop: 4 },
 	objectiveRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 24 },
 	chip: {
 		paddingVertical: 8,
@@ -706,9 +927,9 @@ const styles = StyleSheet.create({
 	chipActive: { backgroundColor: '#4AD1A9', borderColor: '#4AD1A9' },
 	chipPressed: { opacity: 0.85 },
 	chipLocked: { opacity: 0.7 },
-	chipLabel: { color: '#A6B1B8', fontSize: 12, fontWeight: '500' },
+	chipLabel: { color: '#E5ECF4', fontSize: 12, fontWeight: '500' },
 	chipLabelActive: { color: '#061012', fontWeight: '600' },
-	objectiveHint: { color: '#A6B1B8', fontSize: 11, marginBottom: 16 },
+	objectiveHint: { color: '#E1E8F0', fontSize: 11, marginBottom: 16 },
 	progressCard: {
 		backgroundColor: '#161A1D',
 		borderRadius: 18,
@@ -717,11 +938,11 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: 'rgba(255,255,255,0.03)',
 	},
-	progressTitle: { color: '#E6EEF3', fontSize: 16, fontWeight: '600', marginBottom: 16 },
+	progressTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '600', marginBottom: 16 },
 	progressRow: { marginBottom: 16 },
 	progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-	progressLabel: { color: '#A6B1B8', fontSize: 13, fontWeight: '500' },
-	progressValue: { color: '#E6EEF3', fontSize: 13, fontWeight: '600' },
+	progressLabel: { color: '#E2E8F0', fontSize: 13, fontWeight: '500' },
+	progressValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 	progressTrack: {
 		height: 8,
 		borderRadius: 8,
@@ -729,7 +950,7 @@ const styles = StyleSheet.create({
 		overflow: 'hidden',
 	},
 	progressFill: { height: '100%', borderRadius: 8 },
-	feedback: { color: '#5DA3FF', textAlign: 'center', marginBottom: 12 },
+	feedback: { color: '#9AC6FF', textAlign: 'center', marginBottom: 12 },
 	formCard: {
 		backgroundColor: '#161A1D',
 		borderRadius: 18,
@@ -739,7 +960,7 @@ const styles = StyleSheet.create({
 		borderColor: 'rgba(255,255,255,0.03)',
 	},
 	formTitle: { color: '#E6EEF3', fontSize: 16, fontWeight: '600', marginBottom: 16 },
-	label: { color: '#A6B1B8', fontSize: 13, fontWeight: '500', marginBottom: 8 },
+	label: { color: '#EDF2F7', fontSize: 13, fontWeight: '500', marginBottom: 8 },
 	input: {
 		backgroundColor: '#0F1316',
 		borderRadius: 12,
@@ -786,7 +1007,7 @@ const styles = StyleSheet.create({
 		marginTop: 12,
 	},
 	secondaryButtonPressed: { opacity: 0.85 },
-	secondaryButtonText: { color: '#A6B1B8', fontSize: 15, fontWeight: '600' },
+	secondaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
 	timerDisplay: {
 		backgroundColor: '#161A1D',
 		borderRadius: 24,
@@ -860,8 +1081,8 @@ const styles = StyleSheet.create({
 	timerActionPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
 	timerActionIcon: { marginRight: 8 },
 	timerActionTextPrimary: { color: '#061012', fontSize: 15, fontWeight: '700' },
-	timerActionTextSecondary: { color: '#5DA3FF', fontSize: 15, fontWeight: '600' },
-	timerActionTextGhost: { color: '#A6B1B8', fontSize: 15, fontWeight: '600' },
+	timerActionTextSecondary: { color: '#C7E2FF', fontSize: 15, fontWeight: '600' },
+	timerActionTextGhost: { color: '#E2E8F0', fontSize: 15, fontWeight: '600' },
 	noticeCard: {
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -884,8 +1105,24 @@ const styles = StyleSheet.create({
 		marginRight: 16,
 	},
 	noticeBody: { flex: 1 },
-	noticeTitle: { color: '#E6EEF3', fontSize: 15, fontWeight: '600', marginBottom: 4 },
-	noticeText: { color: '#A6B1B8', fontSize: 13 },
+	noticeTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginBottom: 4 },
+	noticeText: { color: '#E2E8F0', fontSize: 13 },
+	noticeActions: { flexDirection: 'row', marginTop: 12, gap: 12 },
+	noticeActionButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		backgroundColor: '#0F1316',
+		borderRadius: 12,
+		paddingVertical: 6,
+		paddingHorizontal: 12,
+		borderWidth: 1,
+		borderColor: 'rgba(255,255,255,0.06)',
+		gap: 6,
+	},
+	noticeActionDanger: { borderColor: 'rgba(255,107,107,0.35)' },
+	noticeActionButtonPressed: { opacity: 0.85 },
+	noticeActionText: { color: '#BDD9FF', fontSize: 12, fontWeight: '600' },
+	noticeActionTextDanger: { color: '#FFC0C0', fontSize: 12, fontWeight: '600' },
 	logoutButton: {
 		marginTop: 16,
 		backgroundColor: '#FF6B6B',
@@ -927,4 +1164,27 @@ const styles = StyleSheet.create({
 	customTimerButtonPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 	customTimerButtonText: { color: '#061012', fontSize: 14, fontWeight: '700' },
 	customTimerError: { color: '#FF6B6B', fontSize: 12, marginTop: 8 },
+	noticeCreateButton: { marginBottom: 16 },
+	noticeForm: {
+		backgroundColor: '#161A1D',
+		borderRadius: 16,
+		padding: 16,
+		marginBottom: 16,
+		borderWidth: 1,
+		borderColor: 'rgba(255,255,255,0.03)',
+	},
+	noticeFormTitle: { color: '#E6EEF3', fontSize: 15, fontWeight: '600', marginBottom: 12 },
+	noticeFormInput: {
+		backgroundColor: '#0F1316',
+		borderRadius: 12,
+		paddingHorizontal: 14,
+		paddingVertical: 12,
+		color: '#E6EEF3',
+		borderWidth: 1,
+		borderColor: 'rgba(255,255,255,0.04)',
+		marginBottom: 12,
+	},
+	noticeFormInputMultiline: { minHeight: 72, textAlignVertical: 'top' },
+	noticeFormButton: { marginTop: 4 },
+	exerciseGroup: { marginBottom: 8 },
 });

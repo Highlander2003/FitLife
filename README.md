@@ -13,7 +13,7 @@ FitLife ayuda a los usuarios a:
 ## Flujo principal de la app
 
 1. **Inicio de sesión (proveído por contexto Auth)** y acceso automático a la navegación de pestañas ocultas.  
-2. **Ejercicios:** revisión diaria del plan y marcado de ejercicios completados.  
+2. **Ejercicios:** revisión diaria del plan, sincronizado en tiempo real con ajustes del entrenador y marcado de ejercicios completados.  
 3. **Nutrición:** seguimiento de macros, registro de comidas y feedback inmediato.  
 4. **Tiempos:** selección de temporizadores rápidos o personalizados con controles de iniciar, pausar y reiniciar.  
 5. **Perfil:** edición de datos personales sincronizados con el contexto de autenticación.  
@@ -26,6 +26,7 @@ FitLife ayuda a los usuarios a:
 - Temporizador configurable con soporte para intervalos rápidos.
 - Gestión del perfil de usuario con actualización en vivo.
 - Sistema de avisos interactivos tipo checklist.
+- Sincronización automática de planes cuando el entrenador hace ajustes.
 
 ## Usabilidad, diseño adaptativo y optimización
 
