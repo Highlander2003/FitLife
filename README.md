@@ -34,11 +34,15 @@ FitLife ayuda a los usuarios a:
 - **Diseño adaptativo:** uso de `SafeAreaView`, espaciados consistentes y layouts flexibles para teléfonos iOS/Android, manteniendo contraste AA en modo oscuro.
 - **Optimización:** datos estáticos memorizados y control del ciclo de vida del temporizador mediante `useRef` para evitar fugas; validaciones ligeras en formularios para reducir errores de usuario.
 
+## Repositorio
+
+El código fuente se mantiene en [Marin1106/FitLifeExpo](https://github.com/Marin1106/FitLifeExpo). Realiza `fork` o clona directamente desde este repositorio para obtener las últimas actualizaciones.
+
 ## Instalación
 
 ```bash
-git clone <repo-url>
-cd FitLife
+git clone https://github.com/Marin1106/FitLifeExpo.git
+cd FitLifeExpo
 npm install
 npx expo start
 ```
@@ -67,6 +71,11 @@ npx expo start
 - Reutilización de estilos centralizados para minimizar recalculados.
 - Control manual de intervalos con `clearInterval` para impedir procesos huérfanos.
 - Limitación de estados al mínimo necesario y uso de actualizaciones funcionales (`setState(prev => ...)`) para mayor previsibilidad.
+
+## Soporte y colaboración
+
+- Reporta bugs o solicita nuevas funcionalidades en [Issues](https://github.com/Marin1106/FitLifeExpo/issues).
+- Envía mejoras mediante [Pull Requests](https://github.com/Marin1106/FitLifeExpo/pulls) siguiendo las convenciones del proyecto.
 
 ## Pitch
 

@@ -11,6 +11,7 @@ import {
 	TextInput,
 	View,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 
 type Trainer = {
 	id: string;
@@ -33,30 +34,35 @@ const Tab = createBottomTabNavigator();
 const trainersSeed: Trainer[] = [
 	{
 		id: 'trainer-1',
-		name: 'Carlos Coach',
-		email: 'c.carlos@fitlife.app',
-		phone: '+52 55 1234 5678',
+		name: 'Juan Pérez',
+		email: 'juan@fitlife.app',
+		phone: '555-0101',
 		users: [
-			{ id: 'user-1', name: 'Úrsula Usuario', since: '01/04/2024' },
-			{ id: 'user-2', name: 'Diego Dinámico', since: '15/05/2024' },
+			{ id: 'user-1', name: 'Carlos López', since: '2023-01-15' },
+			{ id: 'user-2', name: 'María García', since: '2023-02-20' },
 		],
 	},
 	{
 		id: 'trainer-2',
-		name: 'Laura Lift',
-		email: 'l.lift@fitlife.app',
-		phone: '+52 33 9876 5432',
-		users: [{ id: 'user-3', name: 'María Meta', since: '20/02/2024' }],
+		name: 'Ana Torres',
+		email: 'ana@fitlife.app',
+		phone: '555-0102',
+		users: [
+			{ id: 'user-3', name: 'Luis Martínez', since: '2023-03-10' },
+			{ id: 'user-4', name: 'Sofía Rodríguez', since: '2023-04-05' },
+		],
 	},
 ];
 
 const usersSeed: ManagedUser[] = [
-	{ id: 'user-1', name: 'Úrsula Usuario', trainer: 'Carlos Coach', goal: 'Ganancia muscular' },
-	{ id: 'user-2', name: 'Diego Dinámico', trainer: 'Carlos Coach', goal: 'Definición muscular' },
-	{ id: 'user-3', name: 'María Meta', trainer: 'Laura Lift', goal: 'Resistencia' },
+	{ id: 'user-1', name: 'Carlos López', trainer: 'Juan Pérez', goal: 'ganancia muscular' },
+	{ id: 'user-2', name: 'María García', trainer: 'Juan Pérez', goal: 'definición muscular' },
+	{ id: 'user-3', name: 'Luis Martínez', trainer: 'Ana Torres', goal: 'ganancia muscular' },
+	{ id: 'user-4', name: 'Sofía Rodríguez', trainer: 'Ana Torres', goal: 'definición muscular' },
 ];
 
 const AdminProfileScreen = () => {
+	const { logout } = useAuth() as { logout?: () => void };
 	const [profile, setProfile] = useState({
 		name: 'Ana Admin',
 		email: 'admin@fitlife.app',
@@ -71,13 +77,22 @@ const AdminProfileScreen = () => {
 		<SafeAreaView style={styles.screen}>
 			<ScrollView contentContainerStyle={styles.scroll}>
 				<Text style={styles.title}>Perfil</Text>
-				<Text style={styles.subtitle}>Actualiza los datos del administrador principal.</Text>
-				<View style={styles.card}>
-					<Text style={styles.label}>Nombre completo</Text>
+				<Text style={styles.subtitle}>Actualiza tu información personal.</Text>
+
+				{/* user badge (inline styles to avoid modifying global styles object) */}
+				<View style={{ backgroundColor: '#1E2125', padding: 12, borderRadius: 8, marginBottom: 24 }}>
+					<Text style={{ color: '#FFFFFF', fontWeight: '500' }}>
+						Usuario: @{profile.name}
+					</Text>
+				</View>
+
+				<View style={styles.formCard}>
+					<Text style={styles.label}>Nombre</Text>
 					<TextInput
 						style={styles.input}
 						value={profile.name}
 						onChangeText={(value) => handleChange('name', value)}
+						placeholder="Nombre completo"
 						placeholderTextColor="#5D6770"
 					/>
 					<Text style={styles.label}>Correo electrónico</Text>
@@ -87,6 +102,7 @@ const AdminProfileScreen = () => {
 						onChangeText={(value) => handleChange('email', value)}
 						autoCapitalize="none"
 						keyboardType="email-address"
+						placeholder="correo@fitlife.app"
 						placeholderTextColor="#5D6770"
 					/>
 					<Text style={styles.label}>Contraseña</Text>
@@ -112,6 +128,12 @@ const AdminProfileScreen = () => {
 					>
 						<Text style={styles.primaryButtonText}>Guardar cambios</Text>
 					</Pressable>
+					<Pressable
+						onPress={() => logout?.()}
+						style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+					>
+						<Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+					</Pressable>
 				</View>
 			</ScrollView>
 		</SafeAreaView>
@@ -120,285 +142,272 @@ const AdminProfileScreen = () => {
 
 const AdminTrainersScreen = () => {
 	const [trainers, setTrainers] = useState<Trainer[]>(trainersSeed);
-	const [selectedTrainerId, setSelectedTrainerId] = useState<string>(trainersSeed[0]?.id ?? '');
-	const selectedTrainer = useMemo(
-		() => trainers.find((trainer) => trainer.id === selectedTrainerId),
-		[selectedTrainerId, trainers],
-	);
-	const [showTrainerForm, setShowTrainerForm] = useState(false);
-	const [trainerFormMode, setTrainerFormMode] = useState<'create' | 'edit'>('create');
-	const [trainerForm, setTrainerForm] = useState({ name: '', email: '', phone: '' });
-	const [trainerFormError, setTrainerFormError] = useState<string | null>(null);
+	const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
+	const [form, setForm] = useState({
+		name: '',
+		email: '',
+		phone: '',
+	});
+	const [message, setMessage] = useState<string | null>(null);
 
-	const resetTrainerForm = () => {
-		setTrainerForm({ name: '', email: '', phone: '' });
-		setTrainerFormMode('create');
-		setTrainerFormError(null);
-		setShowTrainerForm(false);
-	};
-
-	const openCreateTrainer = () => {
-		setTrainerFormMode('create');
-		setTrainerForm({ name: '', email: '', phone: '' });
-		setTrainerFormError(null);
-		setShowTrainerForm(true);
-	};
-
-	const openEditTrainer = () => {
-		if (!selectedTrainer) return;
-		setTrainerFormMode('edit');
-		setTrainerForm({
-			name: selectedTrainer.name,
-			email: selectedTrainer.email,
-			phone: selectedTrainer.phone,
+	const handleSelectTrainer = (trainer: Trainer) => {
+		setSelectedTrainer(trainer);
+		setForm({
+			name: trainer.name,
+			email: trainer.email,
+			phone: trainer.phone,
 		});
-		setTrainerFormError(null);
-		setShowTrainerForm(true);
 	};
 
-	const handleTrainerChange = (key: 'name' | 'email' | 'phone', value: string) => {
-		setTrainerForm((prev) => ({ ...prev, [key]: value }));
-	};
+	const handleChange = (key: keyof typeof form, value: string) =>
+		setForm((prev) => ({ ...prev, [key]: value }));
 
-	const handleTrainerSubmit = () => {
-		const name = trainerForm.name.trim();
-		const email = trainerForm.email.trim();
-		const phone = trainerForm.phone.trim();
-		if (!name || !email || !phone) {
-			setTrainerFormError('Completa todos los campos.');
-			return;
-		}
-		if (trainerFormMode === 'create') {
-			const newTrainer: Trainer = {
+	const handleSave = () => {
+		if (selectedTrainer) {
+			setTrainers((prev) =>
+				prev.map((trainer) =>
+					trainer.id === selectedTrainer.id
+						? { ...trainer, name: form.name, email: form.email, phone: form.phone }
+						: trainer,
+				),
+			);
+			setMessage('Entrenador actualizado.');
+		} else {
+			const newTrainer = {
 				id: `trainer-${Date.now()}`,
-				name,
-				email,
-				phone,
+				name: form.name,
+				email: form.email,
+				phone: form.phone,
 				users: [],
 			};
 			setTrainers((prev) => [...prev, newTrainer]);
-			setSelectedTrainerId(newTrainer.id);
-			resetTrainerForm();
-			return;
+			setMessage('Entrenador agregado.');
 		}
-		if (!selectedTrainer) {
-			setTrainerFormError('Selecciona un entrenador.');
-			return;
-		}
-		setTrainers((prev) =>
-			prev.map((trainer) =>
-				trainer.id === selectedTrainer.id ? { ...trainer, name, email, phone } : trainer,
-			),
-		);
-		resetTrainerForm();
+		setSelectedTrainer(null);
+		setForm({ name: '', email: '', phone: '' });
 	};
 
-	const handleTrainerDelete = () => {
-		if (!selectedTrainer) return;
-		setTrainers((prev) => {
-			const updated = prev.filter((trainer) => trainer.id !== selectedTrainer.id);
-			const nextSelection = updated[0]?.id ?? '';
-			setSelectedTrainerId(nextSelection);
-			return updated;
-		});
-		resetTrainerForm();
+	const handleDelete = (id: string) => {
+		setTrainers((prev) => prev.filter((trainer) => trainer.id !== id));
+		if (selectedTrainer?.id === id) {
+			setSelectedTrainer(null);
+			setForm({ name: '', email: '', phone: '' });
+		}
 	};
 
 	return (
 		<SafeAreaView style={styles.screen}>
 			<ScrollView contentContainerStyle={styles.scroll}>
 				<Text style={styles.title}>Entrenadores</Text>
-				<Text style={styles.subtitle}>Administra el equipo con acciones rápidas de CRUD.</Text>
-				<View style={styles.actionsRow}>
-					<Pressable
-						onPress={openCreateTrainer}
-						style={({ pressed }) => [
-							styles.actionButton,
-							styles.actionButtonCreate,
-							pressed && styles.actionButtonPressed,
-						]}
-					>
-						<Ionicons name="add-circle-outline" size={18} color="#4AD1A9" style={styles.actionButtonIcon} />
-						<Text style={[styles.actionButtonText, styles.actionButtonAccentSuccess]}>Crear</Text>
-					</Pressable>
-					<Pressable
-						onPress={openEditTrainer}
-						style={({ pressed }) => [
-							styles.actionButton,
-							styles.actionButtonEdit,
-							pressed && styles.actionButtonPressed,
-						]}
-					>
-						<Ionicons name="create-outline" size={18} color="#5DA3FF" style={styles.actionButtonIcon} />
-						<Text style={[styles.actionButtonText, styles.actionButtonAccentInfo]}>Editar</Text>
-					</Pressable>
-					<Pressable
-						onPress={handleTrainerDelete}
-						style={({ pressed }) => [
-							styles.actionButton,
-							styles.actionButtonDelete,
-							pressed && styles.actionButtonPressed,
-						]}
-					>
-						<Ionicons name="trash-outline" size={18} color="#FF6B6B" style={styles.actionButtonIcon} />
-						<Text style={[styles.actionButtonText, styles.actionButtonAccentDanger]}>Eliminar</Text>
-					</Pressable>
-				</View>
-				{showTrainerForm && (
-				 <View style={styles.card}>
-					<Text style={styles.sectionTitle}>
-						{trainerFormMode === 'create' ? 'Nuevo entrenador' : 'Editar entrenador'}
-					</Text>
-					<TextInput
-						style={styles.input}
-						value={trainerForm.name}
-						onChangeText={(value) => handleTrainerChange('name', value)}
-						placeholder="Nombre completo"
-						placeholderTextColor="#5D6770"
-					/>
-					<TextInput
-						style={styles.input}
-						value={trainerForm.email}
-						onChangeText={(value) => handleTrainerChange('email', value)}
-						placeholder="correo@fitlife.app"
-						placeholderTextColor="#5D6770"
-						autoCapitalize="none"
-						keyboardType="email-address"
-					/>
-					<TextInput
-						style={styles.input}
-						value={trainerForm.phone}
-						onChangeText={(value) => handleTrainerChange('phone', value)}
-						placeholder="+52 55 0000 0000"
-						placeholderTextColor="#5D6770"
-					/>
-					{trainerFormError && <Text style={styles.formErrorText}>{trainerFormError}</Text>}
-					<View style={styles.trainerFormActions}>
-						<Pressable
-							onPress={resetTrainerForm}
-							style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
-						>
-							<Text style={styles.secondaryButtonText}>Cancelar</Text>
-						</Pressable>
-						<Pressable
-							onPress={handleTrainerSubmit}
-							style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-						>
-							<Text style={styles.primaryButtonText}>
-								{trainerFormMode === 'create' ? 'Guardar entrenador' : 'Guardar cambios'}
-							</Text>
-						</Pressable>
-					</View>
-				 </View>
-				)}
+				<Text style={styles.subtitle}>Gestiona los entrenadores de tu gimnasio.</Text>
 				<View style={styles.card}>
-					<Text style={styles.sectionTitle}>Listado</Text>
-					{trainers.map((trainer) => {
-						const active = selectedTrainerId === trainer.id;
-						return (
-							<Pressable
-								key={trainer.id}
-								onPress={() => setSelectedTrainerId(trainer.id)}
-								style={({ pressed }) => [
-									styles.trainerRow,
-									active && styles.trainerRowActive,
-									pressed && styles.trainerRowPressed,
-								]}
-							>
-								<View>
-									<Text style={styles.trainerName}>{trainer.name}</Text>
-									<Text style={styles.trainerInfo}>{trainer.email}</Text>
-								</View>
-								<Ionicons
-									name="chevron-forward"
-									size={18}
-									color={active ? '#4AD1A9' : '#66707A'}
-								/>
-							</Pressable>
-						);
-					})}
-				</View>
-				{selectedTrainer && (
-					<View style={styles.detailCard}>
-						<Text style={styles.sectionTitle}>{selectedTrainer.name}</Text>
-						<Text style={styles.detailText}>Correo: {selectedTrainer.email}</Text>
-						<Text style={styles.detailText}>Teléfono: {selectedTrainer.phone}</Text>
-						<Text style={[styles.detailText, { marginTop: 16 }]}>Usuarios asignados</Text>
-						{selectedTrainer.users.map((user) => (
-							<View key={user.id} style={styles.detailUserRow}>
-								<Ionicons name="person-outline" size={16} color="#4AD1A9" style={{ marginRight: 8 }} />
-								<View>
-									<Text style={styles.detailUserName}>{user.name}</Text>
-									<Text style={styles.detailUserMeta}>Desde {user.since}</Text>
-								</View>
+					<Text style={styles.sectionTitle}>Lista de entrenadores</Text>
+					{trainers.map((trainer) => (
+						<Pressable
+							key={trainer.id}
+							onPress={() => handleSelectTrainer(trainer)}
+							style={({ pressed }) => [
+								styles.trainerRow,
+								pressed && styles.trainerRowPressed,
+								selectedTrainer?.id === trainer.id && styles.trainerRowActive,
+							]}
+						>
+							<View>
+								<Text style={styles.trainerName}>{trainer.name}</Text>
+								<Text style={styles.trainerInfo}>{trainer.email}</Text>
 							</View>
-						))}
-					</View>
-				)}
+							<Ionicons name="chevron-forward" size={16} color="#A6B1B8" />
+						</Pressable>
+					))}
+				</View>
+				<View style={styles.card}>
+					<Text style={styles.sectionTitle}>Detalles del entrenador</Text>
+					{selectedTrainer ? (
+						<>
+							<View style={styles.detailCard}>
+								<Text style={styles.label}>Nombre</Text>
+								<TextInput
+									style={styles.input}
+									value={form.name}
+									onChangeText={(value) => handleChange('name', value)}
+									placeholder="Nombre del entrenador"
+									placeholderTextColor="#5D6770"
+								/>
+								<Text style={styles.label}>Correo electrónico</Text>
+								<TextInput
+									style={styles.input}
+									value={form.email}
+									onChangeText={(value) => handleChange('email', value)}
+									autoCapitalize="none"
+									keyboardType="email-address"
+									placeholder="correo@fitlife.app"
+									placeholderTextColor="#5D6770"
+								/>
+								<Text style={styles.label}>Teléfono</Text>
+								<TextInput
+									style={styles.input}
+									value={form.phone}
+									onChangeText={(value) => handleChange('phone', value)}
+									placeholder="555-0101"
+									placeholderTextColor="#5D6770"
+								/>
+							</View>
+							<View style={styles.trainerFormActions}>
+								<Pressable
+									onPress={handleSave}
+									style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+								>
+									<Text style={styles.primaryButtonText}>
+										{selectedTrainer ? 'Guardar cambios' : 'Agregar entrenador'}
+									</Text>
+								</Pressable>
+								<Pressable
+									onPress={() => handleDelete(selectedTrainer.id)}
+									style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+								>
+									<Text style={styles.logoutButtonText}>Eliminar entrenador</Text>
+								</Pressable>
+							</View>
+						</>
+					) : (
+						<Text style={styles.detailText}>Selecciona un entrenador para ver sus detalles.</Text>
+					)}
+				</View>
 			</ScrollView>
 		</SafeAreaView>
 	);
 };
 
 const AdminUsersScreen = () => {
-	const [users] = useState<ManagedUser[]>(usersSeed);
-	const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(usersSeed[0] ?? null);
+	const [users, setUsers] = useState<ManagedUser[]>(usersSeed);
+	const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
+	const [form, setForm] = useState({
+		name: '',
+		trainer: '',
+		goal: '',
+	});
+	const [message, setMessage] = useState<string | null>(null);
+
+	const handleSelectUser = (user: ManagedUser) => {
+		setSelectedUser(user);
+		setForm({
+			name: user.name,
+			trainer: user.trainer,
+			goal: user.goal,
+		});
+	};
+
+	const handleChange = (key: keyof typeof form, value: string) =>
+		setForm((prev) => ({ ...prev, [key]: value }));
+
+	const handleSave = () => {
+		if (selectedUser) {
+			setUsers((prev) =>
+				prev.map((user) =>
+					user.id === selectedUser.id
+						? { ...user, name: form.name, trainer: form.trainer, goal: form.goal }
+						: user,
+				),
+			);
+			setMessage('Usuario actualizado.');
+		} else {
+			const newUser = {
+				id: `user-${Date.now()}`,
+				name: form.name,
+				trainer: form.trainer,
+				goal: form.goal,
+			};
+			setUsers((prev) => [...prev, newUser]);
+			setMessage('Usuario agregado.');
+		}
+		setSelectedUser(null);
+		setForm({ name: '', trainer: '', goal: '' });
+	};
+
+	const handleDelete = (id: string) => {
+		setUsers((prev) => prev.filter((user) => user.id !== id));
+		if (selectedUser?.id === id) {
+			setSelectedUser(null);
+			setForm({ name: '', trainer: '', goal: '' });
+		}
+	};
 
 	return (
 		<SafeAreaView style={styles.screen}>
 			<ScrollView contentContainerStyle={styles.scroll}>
 				<Text style={styles.title}>Usuarios</Text>
-				<Text style={styles.subtitle}>Gestiona usuarios y reasigna entrenadores de forma rápida.</Text>
-				<View style={styles.actionsRow}>
-					<Pressable style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}>
-						<Ionicons name="add-circle-outline" size={18} color="#4AD1A9" />
-						<Text style={styles.actionButtonText}>Crear</Text>
-					</Pressable>
-					<Pressable style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}>
-						<Ionicons name="swap-horizontal-outline" size={18} color="#5DA3FF" />
-						<Text style={styles.actionButtonText}>Cambiar entrenador</Text>
-					</Pressable>
-					<Pressable style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}>
-						<Ionicons name="trash-outline" size={18} color="#FF6B6B" />
-						<Text style={styles.actionButtonText}>Eliminar</Text>
-					</Pressable>
+				<Text style={styles.subtitle}>Gestiona los usuarios de tu gimnasio.</Text>
+				<View style={styles.card}>
+					<Text style={styles.sectionTitle}>Lista de usuarios</Text>
+					{users.map((user) => (
+						<Pressable
+							key={user.id}
+							onPress={() => handleSelectUser(user)}
+							style={({ pressed }) => [
+								styles.trainerRow,
+								pressed && styles.trainerRowPressed,
+								selectedUser?.id === user.id && styles.trainerRowActive,
+							]}
+						>
+							<View>
+								<Text style={styles.trainerName}>{user.name}</Text>
+								<Text style={styles.trainerInfo}>{user.trainer}</Text>
+							</View>
+							<Ionicons name="chevron-forward" size={16} color="#A6B1B8" />
+						</Pressable>
+					))}
 				</View>
 				<View style={styles.card}>
-					<Text style={styles.sectionTitle}>Listado</Text>
-					{users.map((user) => {
-						const active = selectedUser?.id === user.id;
-						return (
-							<Pressable
-								key={user.id}
-								onPress={() => setSelectedUser(user)}
-								style={({ pressed }) => [
-									styles.trainerRow,
-									active && styles.trainerRowActive,
-									pressed && styles.trainerRowPressed,
-								]}
-							>
-								<View>
-									<Text style={styles.trainerName}>{user.name}</Text>
-									<Text style={styles.trainerInfo}>{user.goal}</Text>
-								</View>
-								<Text style={styles.assignedCoach}>{user.trainer}</Text>
-							</Pressable>
-						);
-					})}
+					<Text style={styles.sectionTitle}>Detalles del usuario</Text>
+					{selectedUser ? (
+						<>
+							<View style={styles.detailCard}>
+								<Text style={styles.label}>Nombre</Text>
+								<TextInput
+									style={styles.input}
+									value={form.name}
+									onChangeText={(value) => handleChange('name', value)}
+									placeholder="Nombre del usuario"
+									placeholderTextColor="#5D6770"
+								/>
+								<Text style={styles.label}>Entrenador</Text>
+								<TextInput
+									style={styles.input}
+									value={form.trainer}
+									onChangeText={(value) => handleChange('trainer', value)}
+									placeholder="Entrenador asignado"
+									placeholderTextColor="#5D6770"
+								/>
+								<Text style={styles.label}>Objetivo</Text>
+								<TextInput
+									style={styles.input}
+									value={form.goal}
+									onChangeText={(value) => handleChange('goal', value)}
+									placeholder="Objetivo del usuario"
+									placeholderTextColor="#5D6770"
+								/>
+							</View>
+							<View style={styles.trainerFormActions}>
+								<Pressable
+									onPress={handleSave}
+									style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+								>
+									<Text style={styles.primaryButtonText}>
+										{selectedUser ? 'Guardar cambios' : 'Agregar usuario'}
+									</Text>
+								</Pressable>
+								<Pressable
+									onPress={() => handleDelete(selectedUser.id)}
+									style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+								>
+									<Text style={styles.logoutButtonText}>Eliminar usuario</Text>
+								</Pressable>
+							</View>
+						</>
+					) : (
+						<Text style={styles.detailText}>Selecciona un usuario para ver sus detalles.</Text>
+					)}
 				</View>
-				{selectedUser && (
-					<View style={styles.detailCard}>
-						<Text style={styles.sectionTitle}>{selectedUser.name}</Text>
-						<Text style={styles.detailText}>Objetivo actual: {selectedUser.goal}</Text>
-						<Text style={styles.detailText}>Entrenador asignado: {selectedUser.trainer}</Text>
-						<Pressable
-							onPress={() => {}}
-							style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-						>
-							<Text style={styles.primaryButtonText}>Actualizar información</Text>
-						</Pressable>
-					</View>
-				)}
 			</ScrollView>
 		</SafeAreaView>
 	);
@@ -408,16 +417,9 @@ const AdminTabs = () => (
 	<Tab.Navigator
 		screenOptions={{
 			headerShown: false,
-			tabBarStyle: {
-				backgroundColor: '#0F1316',
-				borderTopColor: 'rgba(255,255,255,0.03)',
-				height: 68,
-				paddingBottom: 12,
-				paddingTop: 12,
-			},
 			tabBarActiveTintColor: '#4AD1A9',
-			tabBarInactiveTintColor: '#66707A',
-			tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
+			tabBarInactiveTintColor: '#A6B1B8',
+			tabBarStyle: { backgroundColor: '#0F1316', borderTopColor: 'rgba(255,255,255,0.04)' },
 		}}
 	>
 		<Tab.Screen
@@ -425,7 +427,7 @@ const AdminTabs = () => (
 			component={AdminProfileScreen}
 			options={{
 				title: 'Perfil',
-				tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" size={size} color={color} />,
+				tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" color={color} size={size} />,
 			}}
 		/>
 		<Tab.Screen
@@ -433,7 +435,7 @@ const AdminTabs = () => (
 			component={AdminTrainersScreen}
 			options={{
 				title: 'Entrenadores',
-				tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
+				tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" color={color} size={size} />,
 			}}
 		/>
 		<Tab.Screen
@@ -441,7 +443,7 @@ const AdminTabs = () => (
 			component={AdminUsersScreen}
 			options={{
 				title: 'Usuarios',
-				tabBarIcon: ({ color, size }) => <Ionicons name="body-outline" size={size} color={color} />,
+				tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" color={color} size={size} />,
 			}}
 		/>
 	</Tab.Navigator>
@@ -450,14 +452,10 @@ const AdminTabs = () => (
 export const AdminStack = () => (
 	<Stack.Navigator
 		screenOptions={{
-			headerStyle: { backgroundColor: '#0F1316' },
-			headerTintColor: '#E6EEF3',
-			headerTitleStyle: { fontWeight: '600' },
-			headerShadowVisible: false,
-			contentStyle: { backgroundColor: '#0B0F12' },
+			headerShown: false,
 		}}
 	>
-		<Stack.Screen name="AdminTabs" component={AdminTabs} options={{ headerShown: false }} />
+		<Stack.Screen name="AdminTabs" component={AdminTabs} />
 	</Stack.Navigator>
 );
 
@@ -467,6 +465,14 @@ const styles = StyleSheet.create({
 	title: { color: '#E6EEF3', fontSize: 24, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
 	subtitle: { color: '#A6B1B8', fontSize: 14, textAlign: 'center', marginBottom: 24 },
 	card: {
+		backgroundColor: '#161A1D',
+		borderRadius: 18,
+		padding: 20,
+		marginBottom: 24,
+		borderWidth: 1,
+		borderColor: 'rgba(255,255,255,0.03)',
+	},
+	formCard: {
 		backgroundColor: '#161A1D',
 		borderRadius: 18,
 		padding: 20,
@@ -506,6 +512,17 @@ const styles = StyleSheet.create({
 	},
 	secondaryButtonPressed: { opacity: 0.85 },
 	secondaryButtonText: { color: '#E6EEF3', fontSize: 14, fontWeight: '600' },
+	logoutButton: {
+		backgroundColor: 'transparent',
+		borderRadius: 12,
+		paddingVertical: 12,
+		alignItems: 'center',
+		borderWidth: 1,
+		borderColor: 'rgba(255,107,107,0.6)',
+		marginTop: 16,
+	},
+	logoutButtonPressed: { opacity: 0.85 },
+	logoutButtonText: { color: '#FF6B6B', fontSize: 14, fontWeight: '600' },
 	actionsRow: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
@@ -562,4 +579,5 @@ const styles = StyleSheet.create({
 	assignedCoach: { color: '#5DA3FF', fontSize: 13, fontWeight: '600' },
 	formErrorText: { color: '#FF6B6B', fontSize: 12, marginBottom: 8 },
 	trainerFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
+	exerciseGroup: { marginBottom: 8 },
 });

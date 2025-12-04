@@ -546,10 +546,11 @@ type AuthReturn = ReturnType<typeof useAuth>;
 type AuthWithOptionalUpdate = Omit<AuthReturn, 'user'> & {
 	user: AuthReturn['user'] extends null ? null : AuthReturn['user'] & WithUserFields;
 	updateProfile?: UpdateProfileFn;
+	logout?: () => void;
 };
 
 const UserProfileScreen = () => {
-	const { user, updateProfile } = useAuth() as AuthWithOptionalUpdate;
+	const { user, updateProfile, logout } = useAuth() as AuthWithOptionalUpdate;
 	const [form, setForm] = useState({
 		name: user?.fullName ?? '',
 		email: user?.email ?? '',
@@ -639,6 +640,12 @@ const UserProfileScreen = () => {
 						<Text style={styles.primaryButtonText}>Guardar cambios</Text>
 					</Pressable>
 					{message && <Text style={styles.feedback}>{message}</Text>}
+					<Pressable
+						onPress={() => logout?.()}
+						style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+					>
+						<Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+					</Pressable>
 				</View>
 			</ScrollView>
 		</SafeAreaView>
