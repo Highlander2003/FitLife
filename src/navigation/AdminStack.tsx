@@ -435,6 +435,7 @@ const AdminUsersScreen = () => {
 				</View>
 				<View style={styles.card}>
 					<Text style={styles.sectionTitle}>Detalles del usuario</Text>
+					{message && <Text style={styles.detailText}>{message}</Text>}
 					{selectedUser ? (
 						<>
 							<View style={styles.detailCard}>
