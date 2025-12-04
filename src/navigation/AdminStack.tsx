@@ -19,6 +19,7 @@ type Trainer = {
 	email: string;
 	phone: string;
 	users: { id: string; name: string; since: string }[];
+	credentials?: { username: string; password: string };
 };
 
 type ManagedUser = {
@@ -41,6 +42,7 @@ const trainersSeed: Trainer[] = [
 			{ id: 'user-1', name: 'Carlos López', since: '2023-01-15' },
 			{ id: 'user-2', name: 'María García', since: '2023-02-20' },
 		],
+		credentials: { username: 'juan.perez', password: 'fit-1234' },
 	},
 	{
 		id: 'trainer-2',
@@ -51,6 +53,7 @@ const trainersSeed: Trainer[] = [
 			{ id: 'user-3', name: 'Luis Martínez', since: '2023-03-10' },
 			{ id: 'user-4', name: 'Sofía Rodríguez', since: '2023-04-05' },
 		],
+		credentials: { username: 'ana.torres', password: 'fit-5678' },
 	},
 ];
 
@@ -143,20 +146,34 @@ const AdminProfileScreen = () => {
 const AdminTrainersScreen = () => {
 	const [trainers, setTrainers] = useState<Trainer[]>(trainersSeed);
 	const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
+	const [isCreatingTrainer, setIsCreatingTrainer] = useState(false);
 	const [form, setForm] = useState({
 		name: '',
 		email: '',
 		phone: '',
+		username: '',
+		password: '',
 	});
 	const [message, setMessage] = useState<string | null>(null);
 
 	const handleSelectTrainer = (trainer: Trainer) => {
+		setIsCreatingTrainer(false);
 		setSelectedTrainer(trainer);
 		setForm({
 			name: trainer.name,
 			email: trainer.email,
 			phone: trainer.phone,
+			username: trainer.credentials?.username ?? '',
+			password: trainer.credentials?.password ?? '',
 		});
+		setMessage(null);
+	};
+
+	const startCreateTrainer = () => {
+		setIsCreatingTrainer(true);
+		setSelectedTrainer(null);
+		setForm({ name: '', email: '', phone: '', username: '', password: '' });
+		setMessage(null);
 	};
 
 	const handleChange = (key: keyof typeof form, value: string) =>
@@ -164,35 +181,65 @@ const AdminTrainersScreen = () => {
 
 	const handleSave = () => {
 		if (selectedTrainer) {
-			setTrainers((prev) =>
-				prev.map((trainer) =>
-					trainer.id === selectedTrainer.id
-						? { ...trainer, name: form.name, email: form.email, phone: form.phone }
-						: trainer,
-				),
-			);
-			setMessage('Entrenador actualizado.');
-		} else {
-			const newTrainer = {
-				id: `trainer-${Date.now()}`,
+			const updatedTrainer = {
+				...selectedTrainer,
 				name: form.name,
 				email: form.email,
 				phone: form.phone,
-				users: [],
+				credentials: { username: form.username.trim(), password: form.password },
 			};
-			setTrainers((prev) => [...prev, newTrainer]);
-			setMessage('Entrenador agregado.');
+			setTrainers((prev) =>
+				prev.map((trainer) =>
+					trainer.id === selectedTrainer.id ? updatedTrainer : trainer,
+				),
+			);
+			setSelectedTrainer(updatedTrainer);
+			setForm({
+				name: updatedTrainer.name,
+				email: updatedTrainer.email,
+				phone: updatedTrainer.phone,
+				username: updatedTrainer.credentials.username,
+				password: updatedTrainer.credentials.password,
+			});
+			setMessage('Entrenador actualizado.');
+			return;
 		}
-		setSelectedTrainer(null);
-		setForm({ name: '', email: '', phone: '' });
+
+		if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.username.trim() || !form.password.trim()) {
+			setMessage('Completa todos los campos antes de registrar.');
+			return;
+		}
+
+		const credentials = { username: form.username.trim(), password: form.password };
+		const newTrainer: Trainer = {
+			id: `trainer-${Date.now()}`,
+			name: form.name.trim(),
+			email: form.email.trim(),
+			phone: form.phone.trim(),
+			users: [],
+			credentials,
+		};
+		setTrainers((prev) => [...prev, newTrainer]);
+		setSelectedTrainer(newTrainer);
+		setIsCreatingTrainer(false);
+		setForm({
+			name: newTrainer.name,
+			email: newTrainer.email,
+			phone: newTrainer.phone,
+			username: credentials.username,
+			password: credentials.password,
+		});
+		setMessage(`Nuevo entrenador registrado. Usuario: ${credentials.username} | Contraseña: ${credentials.password}`);
 	};
 
 	const handleDelete = (id: string) => {
 		setTrainers((prev) => prev.filter((trainer) => trainer.id !== id));
 		if (selectedTrainer?.id === id) {
 			setSelectedTrainer(null);
-			setForm({ name: '', email: '', phone: '' });
+			setIsCreatingTrainer(false);
+			setForm({ name: '', email: '', phone: '', username: '', password: '' });
 		}
+		setMessage('Entrenador eliminado.');
 	};
 
 	return (
@@ -202,6 +249,12 @@ const AdminTrainersScreen = () => {
 				<Text style={styles.subtitle}>Gestiona los entrenadores de tu gimnasio.</Text>
 				<View style={styles.card}>
 					<Text style={styles.sectionTitle}>Lista de entrenadores</Text>
+					<Pressable
+						onPress={startCreateTrainer}
+						style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+					>
+						<Text style={styles.primaryButtonText}>Registrar entrenador</Text>
+					</Pressable>
 					{trainers.map((trainer) => (
 						<Pressable
 							key={trainer.id}
@@ -221,8 +274,11 @@ const AdminTrainersScreen = () => {
 					))}
 				</View>
 				<View style={styles.card}>
-					<Text style={styles.sectionTitle}>Detalles del entrenador</Text>
-					{selectedTrainer ? (
+					<Text style={styles.sectionTitle}>
+						{selectedTrainer ? 'Detalles del entrenador' : isCreatingTrainer ? 'Registrar nuevo entrenador' : 'Selecciona un entrenador'}
+					</Text>
+					{message && <Text style={styles.detailText}>{message}</Text>}
+					{selectedTrainer || isCreatingTrainer ? (
 						<>
 							<View style={styles.detailCard}>
 								<Text style={styles.label}>Nombre</Text>
@@ -251,6 +307,24 @@ const AdminTrainersScreen = () => {
 									placeholder="555-0101"
 									placeholderTextColor="#5D6770"
 								/>
+								<Text style={styles.label}>Usuario de acceso</Text>
+								<TextInput
+									style={styles.input}
+									value={form.username}
+									onChangeText={(value) => handleChange('username', value)}
+									autoCapitalize="none"
+									placeholder="usuario.entrenador"
+									placeholderTextColor="#5D6770"
+								/>
+								<Text style={styles.label}>Contraseña temporal</Text>
+								<TextInput
+									style={styles.input}
+									value={form.password}
+									onChangeText={(value) => handleChange('password', value)}
+									secureTextEntry
+									placeholder="Contraseña temporal"
+									placeholderTextColor="#5D6770"
+								/>
 							</View>
 							<View style={styles.trainerFormActions}>
 								<Pressable
@@ -258,19 +332,21 @@ const AdminTrainersScreen = () => {
 									style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
 								>
 									<Text style={styles.primaryButtonText}>
-										{selectedTrainer ? 'Guardar cambios' : 'Agregar entrenador'}
+										{selectedTrainer ? 'Guardar cambios' : 'Registrar entrenador'}
 									</Text>
 								</Pressable>
-								<Pressable
-									onPress={() => handleDelete(selectedTrainer.id)}
-									style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
-								>
-									<Text style={styles.logoutButtonText}>Eliminar entrenador</Text>
-								</Pressable>
+								{selectedTrainer && (
+									<Pressable
+										onPress={() => handleDelete(selectedTrainer.id)}
+										style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+									>
+										<Text style={styles.logoutButtonText}>Eliminar entrenador</Text>
+									</Pressable>
+								)}
 							</View>
 						</>
 					) : (
-						<Text style={styles.detailText}>Selecciona un entrenador para ver sus detalles.</Text>
+						<Text style={styles.detailText}>Usa “Registrar entrenador” o selecciona uno para editarlo.</Text>
 					)}
 				</View>
 			</ScrollView>
